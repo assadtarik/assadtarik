@@ -1,0 +1,16 @@
+[Unit]
+Description=Relay Web control
+After=network.target
+
+[Service]
+User=radxa 
+WorkingDirectory=/path/to/your/app
+ExecStart=/usr/bin/python3 /home/radxa/scripts/relayControlDi/app.py
+Restart=always
+RestartSec=5
+StandardOutput=file:/var/log/relaywebapp.log
+StandardError=file:/var/log/relaywebapp-error.log
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target  # Start at boot

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modbus RTU Relay Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .control-panel {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status-panel {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .connection-status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .connected {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .disconnected {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+        .section-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+            color: #444;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .control-item, .status-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .item-number {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status-indicator {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+            border: 2px solid #ddd;
+        }
+        .status-indicator.on {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+        .status-indicator.off {
+            background-color: #f44336;
+            border-color: #f44336;
+        }
+        .control-btn {
+            padding: 8px 15px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .control-btn:hover {
+            background-color: #0b7dda;
+        }
+        .bulk-controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .bulk-controls button {
+            padding: 8px 15px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        .turn-all-on {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .turn-all-off {
+            background-color: #f44336;
+            color: white;
+        }
+        .refresh-btn {
+            background-color: #FFC107;
+            color: black;
+        }
+        .input-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Modbus RTU Relay and Input Status</h1>
+    
+    <div class="control-panel">
+        <div id="connection-status" class="connection-status">
+            Connecting to backend...
+        </div>
+        
+        <div class="section-title">Relay Controls</div>
+        <div class="grid-container" id="relay-container">
+            <!-- Relay controls will be added here by JavaScript -->
+        </div>
+        
+        <div class="bulk-controls">
+            <button class="turn-all-on" id="all-on">Turn ALL ON</button>
+            <button class="turn-all-off" id="all-off">Turn ALL OFF</button>
+            <button class="refresh-btn" id="refresh">Refresh All</button>
+        </div>
+    </div>
+    
+    <div class="status-panel">
+        <div class="section-title">Digital Input Status</div>
+        <div class="grid-container" id="input-container">
+            <!-- Input status indicators will be added here by JavaScript -->
+        </div>
+        <div class="input-label">Input states update automatically every second</div>
+    </div>
+
+    <script>
+        // DOM elements
+        const connectionStatus = document.getElementById('connection-status');
+        const relayContainer = document.getElementById('relay-container');
+        const inputContainer = document.getElementById('input-container');
+        const allOnBtn = document.getElementById('all-on');
+        const allOffBtn = document.getElementById('all-off');
+        const refreshBtn = document.getElementById('refresh');
+        
+        // State variables
+        const relayStates = Array(8).fill(false);
+        const inputStates = Array(8).fill(false);
+        let refreshInterval;
+        
+        // Initialize the relay controls
+        function initRelayControls() {
+            relayContainer.innerHTML = '';
+            
+            for (let i = 0; i < 8; i++) {
+                const relayDiv = document.createElement('div');
+                relayDiv.className = 'control-item';
+                
+                const relayNumber = document.createElement('div');
+                relayNumber.className = 'item-number';
+                relayNumber.textContent = `Relay ${i + 1}`;
+                
+                const statusIndicator = document.createElement('div');
+                statusIndicator.className = 'status-indicator';
+                statusIndicator.id = `relay-status-${i}`;
+                
+                const toggleButton = document.createElement('button');
+                toggleButton.className = 'control-btn';
+                toggleButton.textContent = 'Loading...';
+                toggleButton.id = `toggle-${i}`;
+                toggleButton.addEventListener('click', () => toggleRelay(i));
+                
+                relayDiv.appendChild(relayNumber);
+                relayDiv.appendChild(statusIndicator);
+                relayDiv.appendChild(toggleButton);
+                
+                relayContainer.appendChild(relayDiv);
+            }
+        }
+        
+        // Initialize the input status indicators
+        function initInputIndicators() {
+            inputContainer.innerHTML = '';
+            
+            for (let i = 0; i < 8; i++) {
+                const inputDiv = document.createElement('div');
+                inputDiv.className = 'status-item';
+                
+                const inputNumber = document.createElement('div');
+                inputNumber.className = 'item-number';
+                inputNumber.textContent = `Input ${i + 1}`;
+                
+                const statusIndicator = document.createElement('div');
+                statusIndicator.className = 'status-indicator';
+                statusIndicator.id = `input-status-${i}`;
+                
+                const stateLabel = document.createElement('div');
+                stateLabel.className = 'state-label';
+                stateLabel.id = `input-label-${i}`;
+                stateLabel.textContent = 'Unknown';
+                
+                inputDiv.appendChild(inputNumber);
+                inputDiv.appendChild(statusIndicator);
+                inputDiv.appendChild(stateLabel);
+                
+                inputContainer.appendChild(inputDiv);
+            }
+        }
+        
+        // Update relay UI
+        function updateRelayUI(relayIndex) {
+            const statusIndicator = document.getElementById(`relay-status-${relayIndex}`);
+            const toggleButton = document.getElementById(`toggle-${relayIndex}`);
+            
+            if (relayStates[relayIndex]) {
+                statusIndicator.className = 'status-indicator on';
+                toggleButton.textContent = 'Turn OFF';
+            } else {
+                statusIndicator.className = 'status-indicator off';
+                toggleButton.textContent = 'Turn ON';
+            }
+        }
+        
+        // Update input UI
+        function updateInputUI(inputIndex) {
+            const statusIndicator = document.getElementById(`input-status-${inputIndex}`);
+            const stateLabel = document.getElementById(`input-label-${inputIndex}`);
+            
+            if (inputStates[inputIndex]) {
+                statusIndicator.className = 'status-indicator on';
+                stateLabel.textContent = 'Active';
+            } else {
+                statusIndicator.className = 'status-indicator off';
+                stateLabel.textContent = 'Inactive';
+            }
+        }
+        
+        // Toggle relay state
+        async function toggleRelay(relayIndex) {
+            const newState = !relayStates[relayIndex];
+            
+            try {
+                const response = await fetch('/set_relay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        relay: relayIndex,
+                        state: newState
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                relayStates[relayIndex] = newState;
+                updateRelayUI(relayIndex);
+            } catch (error) {
+                console.error('Error toggling relay:', error);
+                alert('Failed to toggle relay: ' + error.message);
+            }
+        }
+        
+        // Set all relays on or off
+        async function setAllRelays(state) {
+            try {
+                const promises = [];
+                for (let i = 0; i < 8; i++) {
+                    promises.push(
+                        fetch('/set_relay', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                relay: i,
+                                state: state
+                            })
+                        })
+                    );
+                }
+                
+                await Promise.all(promises);
+                await getRelayStates(); // Refresh all states
+            } catch (error) {
+                console.error('Error setting all relays:', error);
+                alert('Failed to set all relays: ' + error.message);
+            }
+        }
+        
+        // Get current relay states from backend
+        async function getRelayStates() {
+            try {
+                const response = await fetch('/get_relay_states');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update local states and UI
+                data.states.forEach((state, index) => {
+                    relayStates[index] = state;
+                    updateRelayUI(index);
+                });
+                
+                connectionStatus.className = 'connection-status connected';
+                connectionStatus.textContent = 'Connected to Modbus device';
+                return true;
+            } catch (error) {
+                console.error('Error getting relay states:', error);
+                connectionStatus.className = 'connection-status disconnected';
+                connectionStatus.textContent = 'Disconnected from Modbus device: ' + error.message;
+                return false;
+            }
+        }
+        
+        // Get current input states from backend
+        async function getInputStates() {
+            try {
+                const response = await fetch('/get_digitalInput_state');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update local states and UI
+                data.states.forEach((state, index) => {
+                    inputStates[index] = state;
+                    updateInputUI(index);
+                });
+                
+                return true;
+            } catch (error) {
+                console.error('Error getting input states:', error);
+                return false;
+            }
+        }
+        
+        // Refresh all data
+        async function refreshAllData() {
+            await getRelayStates();
+            await getInputStates();
+        }
+        
+        // Start auto-refresh
+        function startAutoRefresh() {
+            clearInterval(refreshInterval);
+            refreshInterval = setInterval(refreshAllData, 1000); // Refresh every 1 second
+        }
+        
+        // Event listeners
+        allOnBtn.addEventListener('click', () => setAllRelays(true));
+        allOffBtn.addEventListener('click', () => setAllRelays(false));
+        refreshBtn.addEventListener('click', refreshAllData);
+        
+        // Initialize
+        initRelayControls();
+        initInputIndicators();
+        
+        // Get initial states and start auto-refresh
+        refreshAllData().then(() => {
+            startAutoRefresh();
+        });
+    </script>
+</body>
+</html>
