@@ -34,7 +34,7 @@ def get_relay_states():
 		# Read coils 0-7 (relay states)
 		with rwlock.gen_rlock():
 			states = device.read_bits(registeraddress=0, number_of_bits=8, functioncode=1)
-			print(states)        
+			print("relay states", states)        
 			return jsonify({
 				'states': [bool(state) for state in states],
 				'error': None
@@ -69,7 +69,7 @@ def get_digitalInput_state():
 	try:
 		with rwlock.gen_rlock():
 			states = device.read_bits(registeraddress=0, number_of_bits=8, functioncode=2)
-			print(states)
+			print("digitalinput states", states)
 			# states = device.read_coils(0, 8)
 			return jsonify({
 				'states': [bool(state) for state in states],
@@ -80,4 +80,4 @@ def get_digitalInput_state():
 
 	
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=5000, debug=True)
+	app.run(host='0.0.0.0', port=5000, debug=False)
