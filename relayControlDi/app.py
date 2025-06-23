@@ -6,7 +6,7 @@ from readerwriterlock import rwlock
 app = Flask(__name__)
 
 # Modbus RTU configuration
-SERIAL_PORT = 'COM3'  # Change to your serial port (COM3 for Windows)
+SERIAL_PORT = '/dev/ttyUSB0'  # Change to your serial port (COM3 for Windows)
 BAUD_RATE = 9600
 MODBUS_ADDRESS = 1
 
